@@ -102,6 +102,45 @@ def test_track_keeps_its_id():
     assert track.id == 42
 
 
+def test_split_predict_correct_matches_step():
+    """step() is exactly predict() then correct(), so gating can slot into the
+    gap without changing what the track does."""
+    measurements = _measurements()
+    kwargs = dict(dt=1.0, process_var=0.05, meas_var=16.0)
+
+    fused = Track(measurements[0], track_id=1, **kwargs)
+    split = Track(measurements[0], track_id=2, **kwargs)
+
+    for z in measurements[1:]:
+        fused.step(z)
+        split.predict()
+        split.correct(z)
+
+    assert np.allclose(fused.position, split.position), (
+        "splitting the scan changed the estimate"
+    )
+    assert fused.hits == split.hits
+
+
+def test_gating_sees_the_predicted_state_not_the_updated_one():
+    """The whole reason predict and correct are separate: between them the
+    track reports where it EXPECTS a measurement, which is what the gate is
+    judged against. After correct() that value has moved."""
+    measurements = _measurements()
+    track = Track(measurements[0], track_id=1, dt=1.0, process_var=0.05,
+                  meas_var=16.0)
+    track.step(measurements[1])
+
+    track.predict()
+    predicted = track.predicted_measurement.copy()
+    track.correct(measurements[2])
+
+    assert not np.allclose(predicted, track.predicted_measurement), (
+        "reading the prediction after correct() should not give the pre-update "
+        "value -- if these match, the gate is being judged against the wrong state"
+    )
+
+
 def test_track_exposes_prediction_quantities():
     """Gating talks to the Track, not to the filter inside it."""
     measurements = _measurements()
@@ -121,5 +160,7 @@ if __name__ == "__main__":
     test_coasting_follows_the_prediction()
     test_counters_track_hits_and_misses()
     test_track_keeps_its_id()
+    test_split_predict_correct_matches_step()
+    test_gating_sees_the_predicted_state_not_the_updated_one()
     test_track_exposes_prediction_quantities()
     print("all tests passed")

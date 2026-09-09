@@ -11,6 +11,10 @@ the coasting path below. Gating and association (Phases 2-3) do: when no
 measurement is assigned to a track on a given scan, the track has to keep going
 on its prediction alone.
 
+A scan is predict() then correct(), with gating and association in between --
+that gap is why the two are separate methods. step() fuses them for the
+single-target case, where there is nothing to decide in the middle.
+
 COUNTER SEMANTICS: hits starts at 1, because the measurement that seeds the
 filter is itself a hit. Phase 4 sets its confirm/delete thresholds against that
 baseline -- a track with hits == 3 has been updated twice since being created.
@@ -42,18 +46,26 @@ class Track:
         self.hits = 1
         self.misses = 0
 
-    def step(self, measurement=None):
-        """Advance the track one scan.
+    def predict(self):
+        """Move the track forward to this scan's expected position.
+
+        Split out from correct() because gating happens between the two: a scan
+        predicts every track first, then judges which measurements are plausible
+        for each (which needs the predicted state), and only then decides what to
+        assign. A fused predict-and-update leaves nowhere to ask that question.
+        """
+        return self.kf.predict()
+
+    def correct(self, measurement=None):
+        """Fold in whatever this track was assigned this scan.
 
         Args:
-            measurement: [x, y] assigned to this track this scan, or None if
-                         nothing was assigned (the track coasts).
+            measurement: [x, y] assigned to this track, or None if nothing was
+                         (the track coasts on its prediction).
 
         Returns:
-            The track's position estimate after the step.
+            The track's position estimate afterwards.
         """
-        self.kf.predict()
-
         if measurement is not None:
             self.kf.update(measurement)
             self.hits += 1
@@ -66,6 +78,15 @@ class Track:
             self.misses += 1
 
         return self.position
+
+    def step(self, measurement=None):
+        """Predict and correct in one call.
+
+        Convenience for the single-target case, where there is nothing to gate
+        and no assignment to make, so there's no reason to stop in between.
+        """
+        self.predict()
+        return self.correct(measurement)
 
     @property
     def position(self):
