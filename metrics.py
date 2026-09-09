@@ -1,10 +1,9 @@
-"""How well did the tracker do? Numbers, not vibes.
+"""Scoring the tracker against ground truth.
 
-A Dahlgren reviewer cares less that your tracker "looks like it works" and more
-that you MEASURED how well it works and can defend the number. RMSE (root mean
-squared error) between estimated and true position is the standard yardstick:
-average distance between where the tracker thought the target was and where it
-actually was, in position units.
+Whether a tracker "looks like it works" matters less than having a measured
+number that can be defended. RMSE (root mean squared error) between estimated
+and true position is the standard yardstick: the average distance between where
+the tracker thought the target was and where it actually was, in position units.
 """
 
 import numpy as np
