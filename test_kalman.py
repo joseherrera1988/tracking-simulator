@@ -68,8 +68,38 @@ def test_filter_beats_raw_measurements_with_noise():
     )
 
 
+def test_prediction_quantities_available_before_any_update():
+    """Gating needs the predicted measurement and the innovation covariance
+    between predict() and update() -- before a measurement has been chosen.
+    Checked against hand-computed values, since an index slip in H or P would
+    still produce a plausible-looking 2x2."""
+    meas_var = 16.0
+    kf = KalmanFilter2D(dt=1.0, process_var=0.05, meas_var=meas_var)
+    kf.initialize([10.0, -4.0])
+
+    # the predicted measurement is the position part of the state
+    assert np.allclose(kf.predicted_measurement, [10.0, -4.0])
+    assert np.allclose(kf.predicted_measurement, kf.position)
+
+    # initialize() sets the position variances to meas_var, so S starts at
+    # meas_var (state) + meas_var (sensor) on each axis, with no cross terms.
+    S = kf.innovation_covariance
+    assert S.shape == (2, 2), f"expected a 2x2, got {S.shape}"
+    assert np.allclose(S, np.diag([2 * meas_var, 2 * meas_var])), f"S was {S}"
+
+    # predicting grows the uncertainty, so the expected spread grows with it
+    S_before = kf.innovation_covariance
+    kf.predict()
+    S_after = kf.innovation_covariance
+    assert np.all(np.diag(S_after) > np.diag(S_before)), (
+        "S should grow across a predict step"
+    )
+    assert np.allclose(S_after, S_after.T), "S must stay symmetric"
+
+
 if __name__ == "__main__":
     # lets you run the file directly without pytest installed
     test_recovers_position_and_velocity_on_clean_track()
     test_filter_beats_raw_measurements_with_noise()
+    test_prediction_quantities_available_before_any_update()
     print("all tests passed")

@@ -74,3 +74,15 @@ class Track:
     @property
     def velocity(self):
         return self.kf.velocity
+
+    # Gating reads the two below between predict() and update(), to ask which
+    # measurements are plausible for this track. They're delegated for the same
+    # reason position and velocity are: callers talk to the Track, and the
+    # filter it happens to hold stays an implementation detail.
+    @property
+    def predicted_measurement(self):
+        return self.kf.predicted_measurement
+
+    @property
+    def innovation_covariance(self):
+        return self.kf.innovation_covariance

@@ -102,10 +102,24 @@ def test_track_keeps_its_id():
     assert track.id == 42
 
 
+def test_track_exposes_prediction_quantities():
+    """Gating talks to the Track, not to the filter inside it."""
+    measurements = _measurements()
+    track = Track(measurements[0], track_id=1, dt=1.0, process_var=0.05,
+                  meas_var=16.0)
+    track.step(measurements[1])
+
+    assert np.allclose(track.predicted_measurement,
+                       track.kf.predicted_measurement)
+    assert np.allclose(track.innovation_covariance,
+                       track.kf.innovation_covariance)
+
+
 if __name__ == "__main__":
     # lets you run the file directly without pytest installed
     test_track_matches_bare_filter()
     test_coasting_follows_the_prediction()
     test_counters_track_hits_and_misses()
     test_track_keeps_its_id()
+    test_track_exposes_prediction_quantities()
     print("all tests passed")

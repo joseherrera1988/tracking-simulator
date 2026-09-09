@@ -92,12 +92,43 @@ class KalmanFilter2D:
         self.P = self.F @ self.P @ self.F.T + self.Q
         return self.x
 
+    @property
+    def predicted_measurement(self):
+        """Where the filter expects to see a measurement, given its current
+        state: H @ x, i.e. the position part of the estimate.
+
+        Defined here rather than inline in update() because two callers need it.
+        update() subtracts it from an arriving measurement to get the innovation;
+        gating subtracts it from CANDIDATE measurements to ask which ones are
+        plausible at all, before any measurement has been chosen. Keeping one
+        definition means the two can't disagree -- which matters most for the
+        EKF, where this becomes a nonlinear h(x) and has to change in one place.
+        """
+        return self.H @ self.x
+
+    @property
+    def innovation_covariance(self):
+        """How much spread to expect around the predicted measurement: the
+        estimate's own uncertainty projected into measurement space, plus the
+        sensor noise. S = H P H' + R.
+
+        This is what turns a raw distance into a statistically meaningful one.
+        A measurement 10 units off is unremarkable when the filter is unsure and
+        the sensor is noisy, and damning when both are tight; S is what tells
+        those two situations apart.
+        """
+        return self.H @ self.P @ self.H.T + self.R
+
     def update(self, z):
         """Fold in one measurement z = [x, y] and shrink the uncertainty."""
         z = np.asarray(z, dtype=float)
-        y = z - self.H @ self.x            # innovation: measurement minus prediction
-        S = self.H @ self.P @ self.H.T + self.R   # innovation covariance
+        y = z - self.predicted_measurement        # measurement minus prediction
+        S = self.innovation_covariance
         K = self.P @ self.H.T @ np.linalg.inv(S)  # Kalman gain (who to trust)
+        # Both quantities above are computed from the CURRENT x and P, so they
+        # must be read before the two assignments below. Reading either one
+        # afterwards raises nothing -- it just silently returns the post-update
+        # value, which is not what the innovation means.
         self.x = self.x + K @ y
         self.P = (np.eye(4) - K @ self.H) @ self.P
         return self.x
