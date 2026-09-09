@@ -41,9 +41,11 @@ is not needed yet.
 targets.py       ground-truth target motion (constant-velocity model)
 sensor.py        noisy radar: measurement noise
 kalman.py        constant-velocity Kalman filter (state [x, vx, y, vy])
+track.py         one track: a filter plus its ID and hit/miss bookkeeping
 metrics.py       RMSE scoring vs ground truth
 main.py          single-target end-to-end demo
 test_kalman.py   known-answer test on the filter + a noise sanity check
+test_track.py    equivalence test: a track matches the bare filter
 ```
 
 The sensor reports position only; velocity is never measured. The filter infers
@@ -59,7 +61,12 @@ the true heading after the first few scans.
 
 ## Status & roadmap
 
-Single-target tracking is complete, tested, and validated. Multi-target tracking
-with data association is the next phase — see [ROADMAP.md](ROADMAP.md). Missed
-detections and clutter are added to the sensor in that phase, where the
-multi-target logic first needs them.
+Single-target tracking is complete, tested, and validated. Phase 1 of
+[ROADMAP.md](ROADMAP.md) is done: the filter now runs inside a `Track` object
+that carries an ID and hit/miss counts, so the pipeline can hold several targets
+at once. Gating is next, followed by data association.
+
+Track status and the confirm/delete thresholds are deliberately not implemented
+yet. Nothing reads them until Phase 4, which is also where missed detections and
+clutter enter the sensor — the conditions those thresholds need to be tuned
+against.

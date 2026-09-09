@@ -5,7 +5,7 @@ Run:  python main.py
 This wires the pieces together for ONE target:
   1. generate a true trajectory        (targets.py)
   2. produce noisy measurements         (sensor.py)
-  3. run the Kalman filter over them    (kalman.py)
+  3. run a track over them              (track.py, wrapping kalman.py)
   4. score it and plot the result       (metrics.py)
 
 Once this makes sense to you end to end, ROADMAP.md is your path to the
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 from targets import constant_velocity_track
 from sensor import measure
-from kalman import KalmanFilter2D
+from track import Track
 from metrics import position_rmse, raw_measurement_rmse
 
 
@@ -43,16 +43,16 @@ def main():
     # position at once, so no per-step loop is needed here.
     measurements = measure(true_xy, meas_std=meas_std, rng=rng)
 
-    # 3. run the filter, one scan at a time
-    kf = KalmanFilter2D(dt=dt, process_var=process_var, meas_var=meas_std**2)
-    kf.initialize(measurements[0])
+    # 3. run the track, one scan at a time. The first measurement creates the
+    # track; every later one is a step. With a single target there's always a
+    # measurement to hand over, so this track never coasts.
+    track = Track(measurements[0], track_id=1, dt=dt,
+                  process_var=process_var, meas_var=meas_std**2)
 
     estimates = np.zeros((n_steps, 2))
-    estimates[0] = kf.position
+    estimates[0] = track.position
     for k in range(1, n_steps):
-        kf.predict()
-        kf.update(measurements[k])
-        estimates[k] = kf.position
+        estimates[k] = track.step(measurements[k])
 
     # 4. score it
     track_rmse = position_rmse(estimates, true_xy)
