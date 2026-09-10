@@ -13,8 +13,8 @@ The baseline experiment runs a target for 60 scans with position measurement noi
 | Metric | Value |
 |---|---|
 | Raw measurement RMSE | 8.51 |
-| Kalman track RMSE | **4.20** |
-| Error reduction vs raw measurements | **50.7%** |
+| Kalman track RMSE | 4.20 |
+| Error reduction vs raw measurements | 50.7% |
 
 The Kalman filter reduces position error by approximately half compared with the raw sensor measurements.
 
