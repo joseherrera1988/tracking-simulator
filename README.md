@@ -6,7 +6,7 @@ The system simulates targets moving through space, observes them through a noisy
 
 The project explores the estimation, tracking, and sensor-fusion problems that arise in real-world radar and autonomous systems.
 
-## Results (single-target baseline)
+## Results (Single-Target Tracking)
 
 The baseline experiment runs a target for 60 scans with position measurement noise of σ = 6.0 units per axis.
 
