@@ -22,9 +22,9 @@ The Kalman filter reduces position error by approximately half compared with the
 
 The plot shows:
 
-Green: ground-truth target position
-Red: noisy sensor measurements
-Blue: Kalman filter estimate
+1. Green: ground-truth target position
+2. Red: noisy sensor measurements
+3. Blue: Kalman filter estimate
 
 The filter produces a substantially smoother trajectory because it combines noisy measurements with a constant-velocity motion model.
 
