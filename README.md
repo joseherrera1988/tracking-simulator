@@ -8,7 +8,7 @@ The project explores the estimation, tracking, and sensor-fusion problems that a
 
 ## Results (single-target baseline)
 
-Over a 60-scan run with per-axis measurement noise of σ = 6.0 position units:
+The baseline experiment runs a target for 60 scans with position measurement noise of σ = 6.0 units per axis.
 
 | Metric | Value |
 |---|---|
@@ -16,14 +16,17 @@ Over a 60-scan run with per-axis measurement noise of σ = 6.0 position units:
 | Kalman track RMSE | **4.20** |
 | Error reduction vs raw measurements | **50.7%** |
 
-The filter roughly halves position error versus the raw sensor blips it's given.
+The Kalman filter reduces position error by approximately half compared with the raw sensor measurements.
 
 ![tracking result](tracking_result.png)
 
-The green line is ground truth, red dots are the noisy measurements the tracker
-actually receives, and blue is the filter's estimate. The estimate stays smooth
-and close to truth despite scattered measurements because the constant-velocity
-motion model lets it reject noise inconsistent with plausible target motion.
+The plot shows:
+
+Green: ground-truth target position
+Red: noisy sensor measurements
+Blue: Kalman filter estimate
+
+The filter produces a substantially smoother trajectory because it combines noisy measurements with a constant-velocity motion model.
 
 ## Run it
 
