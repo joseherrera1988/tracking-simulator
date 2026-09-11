@@ -2,7 +2,7 @@
 
 A modular Python simulation of radar target tracking, state estimation, measurement gating, and multi-target data association.
 
-The system simulates targets moving through space, observes them through a noisy position-only sensor, and reconstructs their trajectories using Kalman filtering. It then extends the single-target tracker to multiple targets using Mahalanobis-distance gating and global nearest-neighbor association solved with the Hungarian algorithm.
+The system simulates targets moving through space, observes them through a noisy position-only sensor, and reconstructs their trajectories using Kalman filtering. It then extends the single-target tracker to multiple targets using Mahalanobis-distance gating and global nearest-neighbor association solved with the Hungarian algorithm. A track lifecycle starts, confirms, and deletes tracks from the measurements alone under missed detections and clutter, and the result is evaluated with the GOSPA metric against a raw-detection baseline.
 
 The project explores the estimation, tracking, and sensor-fusion problems that arise in real-world radar and autonomous systems.
 
