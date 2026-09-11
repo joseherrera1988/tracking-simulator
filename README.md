@@ -28,6 +28,72 @@ The plot shows:
 
 The filter produces a substantially smoother trajectory because it combines noisy measurements with a constant-velocity motion model.
 
+## Results (Multi-Target Tracking)
+
+`python evaluate.py` scores every scan with GOSPA (Rahmathullah, García-Fernández
+and Svensson, 2017), comparing the confirmed tracks with the targets actually
+present. With α = 2 the score splits into three parts: squared localization
+error on matched pairs, and a fixed charge of c²/2 for each missed target and
+each false track. The cutoff is c = 15, above typical localization error and
+below the spacing between targets. The baseline is the raw detections scored as
+if they were the tracker's output, which is the multi-target counterpart of the
+raw measurement RMSE above. The scenario is the three-target lifecycle scenario
+described below, with 20 seeds per setting and the tracker's thresholds fixed at
+confirm_after = 4 and delete_tentative_after = 1.
+
+At p_detect = 0.9 with two false alarms per scan:
+
+| Metric | Raw detections | Tracker |
+|---|---|---|
+| GOSPA per scan (RMS) | 17.63 | 7.87 |
+| Localization RMSE, matched pairs | 5.63 | 3.49 |
+| Missed targets per scan | 0.19 | 0.23 |
+| False tracks per scan | 2.01 | 0.11 |
+| ID changes per run | — | 0.00 |
+
+The tracker lowers GOSPA by 55%. The gain comes from suppressing clutter (2.01
+false reports per scan reduced to 0.11) and from filtering noise (localization
+error 5.63 reduced to 3.49). The tracker misses slightly more targets than the
+raw detections do. Its misses fall almost entirely in the scans before a
+target's first confirmation: once confirmed, a track coasts through missed
+detections. Its false tracks at this clutter level are mostly the scans a
+confirmed track spends coasting after its target has left, before it is deleted.
+The timeline below shows both effects in one run.
+
+![evaluation timeline](evaluation_timeline.png)
+
+GOSPA scores each scan on its own and cannot see track identity; a tracker that
+swapped IDs every scan could still score well. ID changes are therefore reported
+separately, and they stay at or below 0.15 per run in every setting below.
+
+### How performance degrades
+
+![evaluation sweeps](evaluation_sweeps.png)
+
+| p_detect | False alarms per scan | GOSPA, raw | GOSPA, tracker | Scans to confirm |
+|---|---|---|---|---|
+| 0.9 | 0 | 9.18 | 7.61 | 4.53 |
+| 0.9 | 1 | 14.02 | 7.72 | 4.50 |
+| 0.9 | 2 | 17.63 | 7.87 | 4.70 |
+| 0.9 | 3 | 20.66 | 8.96 | 5.85 |
+| 0.9 | 4 | 22.94 | 9.50 | 6.49 |
+| 1.0 | 2 | 17.16 | 7.38 | 3.85 |
+| 0.8 | 2 | 18.03 | 9.39 | 8.86 |
+| 0.7 | 2 | 18.49 | 10.81 | 12.47 |
+
+The tracker tolerates clutter well. From no clutter to four false alarms per
+scan its GOSPA rises by 25%, while the raw detections' rises by a factor of 2.5.
+Even with no clutter the tracker scores better, because its localization gain
+outweighs the scans it spends confirming each target.
+
+It is more sensitive to missed detections. From p_detect 1.0 to 0.7 its GOSPA
+rises by 46%, against 8% for the raw detections. The cause is the confirmation
+rule rather than the filter: a tentative track is deleted on its first miss, so
+confirmation needs four consecutive detections, which at p_detect 0.7 happens
+with probability 0.24. Mean confirmation delay grows from 3.85 scans to 12.47.
+The thresholds were chosen at p_detect 0.9 and do not carry over to a weaker
+sensor.
+
 ## Run it
 
 ```bash
@@ -36,6 +102,7 @@ python main.py          # single-target demo, prints RMSE, writes tracking_resul
 python gating_demo.py   # per-scan gate: what a track accepts and rejects
 python crossing_demo.py # two crossing targets, writes crossing_result.png
 python lifecycle_demo.py # targets come and go under clutter, writes lifecycle_result.png
+python evaluate.py      # GOSPA sweeps vs the raw-detection baseline, writes evaluation_*.png
 pytest                  # the full test suite
 ```
 
@@ -49,17 +116,20 @@ track.py         one track: a filter plus its ID, status and hit/miss counts
 gating.py        Mahalanobis distance from a prediction to candidate measurements
 association.py   global nearest neighbor: which measurement belongs to which track
 tracker.py       track lifecycle: initiation, confirmation, deletion
-metrics.py       RMSE scoring vs ground truth
+metrics.py       RMSE and GOSPA scoring vs ground truth
+scenario.py      the three-target scenario and truth-based track scoring
 main.py          single-target end-to-end demo
 gating_demo.py   per-scan printout of what the gate accepts and rejects
 crossing_demo.py two crossing targets, tracked through the crossing
 lifecycle_demo.py targets entering and leaving under clutter, plus a threshold sweep
+evaluate.py      GOSPA against the raw-detection baseline, across sensor settings
 test_kalman.py   known-answer test on the filter + a noise sanity check
 test_track.py    equivalence test: a track matches the bare filter
 test_gating.py   hand-computed distances, including a correlated covariance
 test_association.py  the case where taking each track's nearest gets it wrong
 test_sensor.py   detect() reproduces measure() exactly when nothing is missed
 test_tracker.py  each lifecycle rule pinned to the scan it fires on
+test_metrics.py  GOSPA cases worked by hand, including one the cutoff decides
 ```
 
 The sensor reports position only; velocity is never measured. The filter infers
@@ -75,11 +145,12 @@ the true heading after the first few scans.
 
 ## Status & roadmap
 
-Phases 1 through 4 of [ROADMAP.md](ROADMAP.md) are done: the filter runs inside a
+All five phases of [ROADMAP.md](ROADMAP.md) are done: the filter runs inside a
 `Track`, each track can say which measurements are plausible for it, multiple
-tracks are assigned their measurements together rather than one at a time, and
+tracks are assigned their measurements together rather than one at a time,
 tracks are started, confirmed and deleted from the measurements alone under
-missed detections and clutter. Multi-target metrics are next.
+missed detections and clutter, and the result is scored with GOSPA against a
+raw-detection baseline. The extended Kalman filter is the next stretch goal.
 
 ## Multi-target: two crossing targets
 
@@ -173,3 +244,15 @@ The crossing demo still seeds its two tracks by hand, deliberately, so that it
 tests association with no lifecycle logic involved. The velocity prior is left
 unchanged because the single-target baseline depends on it, and in the sweep it
 mattered less than the confirmation threshold.
+
+Confirmation needs consecutive hits, which the evaluation shows is the tracker's
+weak point against a sensor that misses often. An M-of-N rule, such as three
+hits in any five scans, would not restart on a single miss; it is the natural
+next change to the tracker, but it needs a window of history per tentative
+track, and nothing in the current results calls for it at p_detect 0.9.
+
+The evaluation scores scans, not trajectories. Trajectory GOSPA (García-Fernández,
+Rahmathullah and Svensson, 2020) adds a penalty for track switches and would
+fold the separate ID-change count into the metric. The CLEAR MOT metrics (MOTA
+and MOTP), common in computer vision, are the other standard choice; GOSPA was
+preferred because its parts are additive and each has a direct meaning.

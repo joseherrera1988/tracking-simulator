@@ -85,6 +85,15 @@ Single-target RMSE isn't enough for multi-target. Report:
 
 Milestone: a results table and plots you can drop into the README.
 
+*As built*, GOSPA (with α = 2) covers the first two items as well as the third:
+its localization part, taken over matched pairs, is the RMSE over confirmed
+tracks, and its missed and false counts are the track-count accuracy, per scan.
+One function then scores all three rather than three separate calculations
+that could disagree. Two additions: the raw detections scored as if they were
+the tracker's output, as the baseline a GOSPA number needs to mean anything, and
+a separate count of ID changes, because GOSPA scores each scan on its own and
+cannot see identity.
+
 ---
 
 ## Stretch goals (pick based on time and what you want to signal)
