@@ -35,6 +35,7 @@ pip install -r requirements.txt
 python main.py          # single-target demo, prints RMSE, writes tracking_result.png
 python gating_demo.py   # per-scan gate: what a track accepts and rejects
 python crossing_demo.py # two crossing targets, writes crossing_result.png
+python lifecycle_demo.py # targets come and go under clutter, writes lifecycle_result.png
 pytest                  # the full test suite
 ```
 
@@ -42,19 +43,23 @@ pytest                  # the full test suite
 
 ```
 targets.py       ground-truth target motion (constant-velocity model)
-sensor.py        noisy radar: measurement noise
+sensor.py        noisy radar: measurement noise, missed detections, clutter
 kalman.py        constant-velocity Kalman filter (state [x, vx, y, vy])
-track.py         one track: a filter plus its ID and hit/miss bookkeeping
+track.py         one track: a filter plus its ID, status and hit/miss counts
 gating.py        Mahalanobis distance from a prediction to candidate measurements
 association.py   global nearest neighbor: which measurement belongs to which track
+tracker.py       track lifecycle: initiation, confirmation, deletion
 metrics.py       RMSE scoring vs ground truth
 main.py          single-target end-to-end demo
 gating_demo.py   per-scan printout of what the gate accepts and rejects
 crossing_demo.py two crossing targets, tracked through the crossing
+lifecycle_demo.py targets entering and leaving under clutter, plus a threshold sweep
 test_kalman.py   known-answer test on the filter + a noise sanity check
 test_track.py    equivalence test: a track matches the bare filter
 test_gating.py   hand-computed distances, including a correlated covariance
 test_association.py  the case where taking each track's nearest gets it wrong
+test_sensor.py   detect() reproduces measure() exactly when nothing is missed
+test_tracker.py  each lifecycle rule pinned to the scan it fires on
 ```
 
 The sensor reports position only; velocity is never measured. The filter infers
@@ -70,10 +75,11 @@ the true heading after the first few scans.
 
 ## Status & roadmap
 
-Phases 1 through 3 of [ROADMAP.md](ROADMAP.md) are done: the filter runs inside a
-`Track`, each track can say which measurements are plausible for it, and multiple
-tracks are assigned their measurements together rather than one at a time. Track
-lifecycle is next.
+Phases 1 through 4 of [ROADMAP.md](ROADMAP.md) are done: the filter runs inside a
+`Track`, each track can say which measurements are plausible for it, multiple
+tracks are assigned their measurements together rather than one at a time, and
+tracks are started, confirmed and deleted from the measurements alone under
+missed detections and clutter. Multi-target metrics are next.
 
 ## Multi-target: two crossing targets
 
@@ -104,11 +110,52 @@ limitation of this approach is that it commits to one hard assignment per scan,
 so a confident wrong choice cannot be revisited, where a probabilistic tracker
 would carry the ambiguity forward.
 
+## Track lifecycle: targets that come and go
+
+`python lifecycle_demo.py` runs three targets through a 200 × 200 region at
+different times. The sensor reports each target with probability 0.9 per scan
+and adds two false alarms per scan on average, scattered uniformly. No track is
+seeded by hand. Every measurement that no track claims starts a tentative track;
+a tentative track is confirmed after a set number of hits and deleted on its
+first miss; a confirmed track is deleted after five misses in a row.
+
+In the seeded run, 76 tracks are created. Five are confirmed, one of which
+follows nothing and is deleted five scans after confirmation. The other 71 are
+never confirmed, and every one that ended within the run was deleted within three
+scans. None of the false tracks persists.
+
+![lifecycle result](lifecycle_result.png)
+
+One run cannot show a tradeoff, so the demo also sweeps the two thresholds over
+20 seeds:
+
+| confirm_after | delete_tentative_after | False tracks per run | Scans to confirm (mean, max) |
+|---|---|---|---|
+| 3 | 1 | 4.40 | 3.37, 12 |
+| 3 | 2 | 10.25 | 3.57, 12 |
+| 4 | 1 | 0.50 | 4.93, 13 |
+| 4 | 2 | 1.60 | 4.72, 13 |
+
+The number of hits required to confirm is the setting that controls false
+tracks: moving from three to four cuts them by a factor of about nine, at a cost
+of roughly one and a half scans of delay. Letting a tentative track survive one
+miss was expected to reduce restarts on real targets. At this detection
+probability it barely changes confirmation delay, and it doubles or triples the
+false tracks, because clutter-seeded tracks live long enough to find more
+clutter.
+
+Two limitations are known. A new track's velocity prior, inherited from the
+single-target filter, is wide (a standard deviation of about 22 units per scan
+against target speeds between 3 and 4), so a new track's gate is large on its
+second scan and readily catches clutter. And association treats tentative and
+confirmed tracks alike, so a tentative track can take a measurement a confirmed
+track needed. In the seeded run this is why target A changes track ID at scan
+17: a clutter point pulled track 3 off the target, and on the next scan a newly
+started tentative track won A's measurement from it.
+
 ## Deliberately not built yet
 
-Track status and the confirm/delete thresholds are not implemented. Nothing reads
-them until Phase 4, which is also where missed detections and clutter enter the
-sensor — the conditions those thresholds need to be tuned against. For the same
-reason, both demos generate their own decoy and multi-target setup rather than
-adding capability to `sensor.py`, and tracks are still seeded by hand rather than
-initiated from unmatched measurements.
+The crossing demo still seeds its two tracks by hand, deliberately, so that it
+tests association with no lifecycle logic involved. The velocity prior is left
+unchanged because the single-target baseline depends on it, and in the sweep it
+mattered less than the confirmation threshold.

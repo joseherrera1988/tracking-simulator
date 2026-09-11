@@ -52,9 +52,19 @@ Milestone: two crossing targets stay correctly tracked through the crossing.
 
 Targets appear and disappear; the tracker must too.
 
-- **Initiation**: unmatched measurements that persist across N scans spawn a new
-  tentative track; promote to confirmed after M hits.
-- **Deletion**: a track that misses measurements for K consecutive scans dies.
+- **Initiation**: every unmatched measurement spawns a new tentative track;
+  promote to confirmed after M hits.
+- **Deletion**: a track that misses measurements for K consecutive scans dies,
+  with a separate, stricter K for tentative tracks.
+
+*Changed from the original plan*, which held unmatched measurements in a
+pending list and only started a track once one persisted across N scans. That
+delays committing to a track, but needs a second data structure with its own
+lifecycle to test. Starting a tentative track from a single measurement reuses
+the confirm/delete rules instead: an isolated clutter point almost never
+repeats near its own prediction, so its track misses on the next scan and is
+deleted. The cost is transient objects, one tentative track per clutter point
+for a scan or two. See `tracker.py` for the reasoning in full.
 
 This is where you ADD missed detections and clutter to the sensor (a
 `p_detect` probability and a `clutter_rate` for false alarms) — they were left

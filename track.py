@@ -16,8 +16,14 @@ that gap is why the two are separate methods. step() fuses them for the
 single-target case, where there is nothing to decide in the middle.
 
 COUNTER SEMANTICS: hits starts at 1, because the measurement that seeds the
-filter is itself a hit. Phase 4 sets its confirm/delete thresholds against that
-baseline -- a track with hits == 3 has been updated twice since being created.
+filter is itself a hit. The Tracker's confirm/delete thresholds are set against
+that baseline -- a track with hits == 3 has been updated twice since being
+created. misses counts CONSECUTIVE misses: any hit resets it.
+
+STATUS is "tentative" or "confirmed", and nothing else. There is no "dead": a
+deleted track is removed from the Tracker's list, and that removal is the
+deletion. A dead status would be a tombstone every caller has to remember to
+filter out, and one that could still be handed a measurement by mistake.
 """
 
 from kalman import KalmanFilter2D
@@ -32,19 +38,20 @@ class Track:
             track_id:          unique identifier, assigned by the caller.
             dt, process_var, meas_var: passed straight through to the filter.
 
-        The ID is supplied rather than generated internally. In Phase 4 a manager
-        owns track creation and is the natural place to hand out IDs; a counter
-        hidden in this class would leak state between tests in the meantime.
+        The ID is supplied rather than generated internally. The Tracker owns
+        track creation and hands out IDs; a counter hidden in this class would
+        leak state between tests and between Tracker instances.
         """
         self.id = track_id
         self.kf = KalmanFilter2D(dt=dt, process_var=process_var,
                                  meas_var=meas_var)
         self.kf.initialize(first_measurement)
 
-        # Bookkeeping only -- nothing acts on these yet. Phase 4 reads them to
-        # decide when a track is confirmed or dead.
+        # The Tracker reads these to decide when a track is confirmed or
+        # deleted; the track itself only keeps count.
         self.hits = 1
         self.misses = 0
+        self.status = "tentative"
 
     def predict(self):
         """Move the track forward to this scan's expected position.
@@ -74,7 +81,7 @@ class Track:
             # No measurement: the prediction stands as the estimate. Note the
             # filter's covariance grew during predict() and nothing shrank it,
             # so a coasting track gets steadily less certain -- which is the
-            # honest answer, and what Phase 4 uses to justify deleting it.
+            # honest answer, and why the Tracker deletes one that coasts too long.
             self.misses += 1
 
         return self.position

@@ -20,8 +20,9 @@ on the evidence.
 
 ABOUT TRACK CREATION: both tracks are seeded by hand from the first scan, and
 which measurement seeds which track is decided here, in the demo, by looking at
-ground truth. Deciding that from measurements alone is track initiation, and
-that's Phase 4 along with deletion, clutter, and missed detections.
+ground truth. Deciding that from measurements alone is track initiation, which
+tracker.py does and lifecycle_demo.py shows. This demo keeps the hand seeding on
+purpose: it isolates association, with no lifecycle in the way.
 """
 
 import numpy as np

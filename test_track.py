@@ -80,6 +80,7 @@ def test_counters_track_hits_and_misses():
 
     assert track.hits == 1, "the initializing measurement counts as a hit"
     assert track.misses == 0
+    assert track.status == "tentative", "a new track has to earn confirmation"
 
     track.step(measurements[1])
     assert track.hits == 2, f"expected 2 hits, got {track.hits}"
