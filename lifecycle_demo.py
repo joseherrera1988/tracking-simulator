@@ -110,11 +110,14 @@ def followed_target(record, truth):
 
 
 def score(truth, history):
-    """False confirmed tracks, and scans from each target's entry until a
-    track following it is confirmed."""
+    """False confirmed tracks, extra confirmed tracks on real targets (a target
+    followed by two tracks over the run changed ID once), and scans from each
+    target's entry until a track following it is confirmed."""
     confirmed = {tid: r for tid, r in history.items() if "confirmed" in r}
     labels = {tid: followed_target(r, truth) for tid, r in confirmed.items()}
     false_tracks = sum(1 for name in labels.values() if name is None)
+    followed = [name for name in labels.values() if name is not None]
+    extra_tracks = len(followed) - len(set(followed))
 
     delays = []
     for name, (first, _, _) in truth.items():
@@ -122,7 +125,7 @@ def score(truth, history):
                          for tid, n in labels.items() if n == name]
         if confirm_scans:
             delays.append(min(confirm_scans) - first)
-    return false_tracks, delays, labels
+    return false_tracks, extra_tracks, delays, labels
 
 
 def print_event_log(truth, history, labels):
@@ -150,25 +153,27 @@ def print_event_log(truth, history, labels):
     print(f"\n{len(history)} tracks created in all; {len(tentative)} were never "
           f"confirmed.")
     print(f"Of those, {len(lifetimes)} were deleted, after at most "
-          f"{max(lifetimes)} scan(s); {still_alive} were still tentative when "
-          f"the run ended.")
+          f"{max(lifetimes)} scan(s). Still tentative when the run ended: "
+          f"{still_alive}.")
 
 
 def print_sweep(seeds=range(20)):
     print(f"\nThreshold sweep, {len(seeds)} seeds per row:\n")
-    print("  confirm_after  delete_tentative_after  "
-          "false tracks/run  scans to confirm (mean, max)")
+    print("  confirm_after  delete_tentative_after  false tracks/run  "
+          "extra tracks on real targets/run  scans to confirm (mean, max)")
     for confirm_after in (3, 4):
         for delete_tentative_after in (1, 2):
-            false_counts, all_delays = [], []
+            false_counts, extra_counts, all_delays = [], [], []
             for seed in seeds:
                 truth, _, history = simulate(seed, confirm_after,
                                              delete_tentative_after)
-                false_tracks, delays, _ = score(truth, history)
+                false_tracks, extra_tracks, delays, _ = score(truth, history)
                 false_counts.append(false_tracks)
+                extra_counts.append(extra_tracks)
                 all_delays += delays
             print(f"  {confirm_after:13d}  {delete_tentative_after:22d}  "
                   f"{np.mean(false_counts):16.2f}  "
+                  f"{np.mean(extra_counts):32.2f}  "
                   f"{np.mean(all_delays):10.2f}, {max(all_delays):2d}")
 
 
@@ -207,7 +212,7 @@ def plot(truth, scans, history, labels):
 def main():
     truth, scans, history = simulate(seed=7, confirm_after=4,
                                      delete_tentative_after=1)
-    _, _, labels = score(truth, history)
+    _, _, _, labels = score(truth, history)
     print_event_log(truth, history, labels)
     print_sweep()
     plot(truth, scans, history, labels)

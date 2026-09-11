@@ -118,40 +118,54 @@ and adds two false alarms per scan on average, scattered uniformly. No track is
 seeded by hand. Every measurement that no track claims starts a tentative track;
 a tentative track is confirmed after a set number of hits and deleted on its
 first miss; a confirmed track is deleted after five misses in a row.
+Association runs confirmed tracks first, and tentative tracks compete only for
+the measurements left over.
 
-In the seeded run, 76 tracks are created. Five are confirmed, one of which
-follows nothing and is deleted five scans after confirmation. The other 71 are
-never confirmed, and every one that ended within the run was deleted within three
-scans. None of the false tracks persists.
+In the seeded run, 76 tracks are created. Three are confirmed, one per target,
+and each follows its target for as long as the target is present; B's track is
+deleted five scans after B leaves. The other 73 are never confirmed, and every
+one that ended within the run was deleted within three scans. B also shows the
+cost of deleting tentative tracks on their first miss: the sensor missed B on
+scans 11 and 14, each miss removed the tentative track B had started, and B was
+confirmed only at scan 18, eight scans after it entered.
 
 ![lifecycle result](lifecycle_result.png)
 
 One run cannot show a tradeoff, so the demo also sweeps the two thresholds over
 20 seeds:
 
-| confirm_after | delete_tentative_after | False tracks per run | Scans to confirm (mean, max) |
-|---|---|---|---|
-| 3 | 1 | 4.40 | 3.37, 12 |
-| 3 | 2 | 10.25 | 3.57, 12 |
-| 4 | 1 | 0.50 | 4.93, 13 |
-| 4 | 2 | 1.60 | 4.72, 13 |
+| confirm_after | delete_tentative_after | False tracks per run | Extra tracks on real targets per run | Scans to confirm (mean, max) |
+|---|---|---|---|---|
+| 3 | 1 | 2.45 | 0.00 | 3.20, 10 |
+| 3 | 2 | 6.60 | 0.10 | 3.48, 11 |
+| 4 | 1 | 0.15 | 0.00 | 4.70, 11 |
+| 4 | 2 | 0.50 | 0.00 | 4.60, 12 |
+
+An extra track on a real target means the target changed track ID during the
+run.
 
 The number of hits required to confirm is the setting that controls false
-tracks: moving from three to four cuts them by a factor of about nine, at a cost
-of roughly one and a half scans of delay. Letting a tentative track survive one
-miss was expected to reduce restarts on real targets. At this detection
-probability it barely changes confirmation delay, and it doubles or triples the
-false tracks, because clutter-seeded tracks live long enough to find more
-clutter.
+tracks: moving from three to four cuts them by a factor of about sixteen, at a
+cost of roughly one and a half scans of delay. Letting a tentative track survive
+one miss was expected to reduce restarts on real targets. At this detection
+probability it shortens mean confirmation delay by at most 0.1 scans and lengthens
+it at three hits, and it roughly triples the false tracks, because clutter-seeded
+tracks live long enough to find more clutter.
 
-Two limitations are known. A new track's velocity prior, inherited from the
+Giving confirmed tracks first claim on measurements was added after the demo
+showed the problem it solves. With all tracks competing equally, a clutter
+point pulled target A's track slightly off course at scan 17, a tentative track
+started from A's own measurement won the next one, and A changed track ID. Across
+the 20 seeds, equal competition left between 0.45 and 0.90 extra tracks per run
+on real targets; confirmed-first leaves at most 0.10. It also reduces false
+tracks by between a third and two thirds, depending on the thresholds. The
+equal-competition figures are from the Phase 4 tracker (commit 2c57d47), scored
+with the same sweep and the same seeds.
+
+One limitation is known. A new track's velocity prior, inherited from the
 single-target filter, is wide (a standard deviation of about 22 units per scan
 against target speeds between 3 and 4), so a new track's gate is large on its
-second scan and readily catches clutter. And association treats tentative and
-confirmed tracks alike, so a tentative track can take a measurement a confirmed
-track needed. In the seeded run this is why target A changes track ID at scan
-17: a clutter point pulled track 3 off the target, and on the next scan a newly
-started tentative track won A's measurement from it.
+second scan and readily catches clutter.
 
 ## Deliberately not built yet
 

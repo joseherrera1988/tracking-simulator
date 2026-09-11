@@ -28,12 +28,16 @@ sensor happens to miss it during its first few scans; the track then re-forms
 from the next detection under a new ID. Raising it trades faster clutter cleanup
 for fewer restarts, and lifecycle_demo.py shows both sides.
 
-KNOWN GAP: association treats tentative and confirmed tracks alike, so a
-clutter-spawned tentative track can compete with a confirmed track for a
-measurement in the assignment and occasionally win it. Real systems give
-confirmed tracks priority. Not built until a demo shows it happening -- but if a
-confirmed track inexplicably drops a measurement, this is the first suspect.
+CONFIRMED TRACKS CHOOSE FIRST. Association runs in two passes: confirmed tracks
+against every measurement, then tentative tracks against whatever is left. In a
+single joint assignment a tentative track can win a measurement a confirmed
+track needed -- typically when the confirmed track has just been pulled slightly
+off target and a track started from the target's own last measurement sits
+closer. The confirmed track then coasts out, and the target changes ID for no
+good reason. lifecycle_demo.py showed this happening before the change was made.
 """
+
+import numpy as np
 
 from association import associate
 from gating import CHI2_99_2D
@@ -77,17 +81,16 @@ class Tracker:
         """
         events = []
 
-        # 1. predict, associate, correct -- the Phase 3 scan, unchanged
+        # 1. predict, then associate in two passes: confirmed tracks take their
+        # pick, and tentative tracks compete only for what they left
         for track in self.tracks:
             track.predict()
 
-        matches, unmatched_tracks, unmatched_measurements = associate(
-            self.tracks, measurements, threshold=self.gate
-        )
-        for track_index, measurement_index in matches:
-            self.tracks[track_index].correct(measurements[measurement_index])
-        for track_index in unmatched_tracks:
-            self.tracks[track_index].correct(None)
+        confirmed = [t for t in self.tracks if t.status == "confirmed"]
+        tentative = [t for t in self.tracks if t.status == "tentative"]
+        unclaimed = np.arange(len(measurements))
+        unclaimed = self._assign(confirmed, measurements, unclaimed)
+        unclaimed = self._assign(tentative, measurements, unclaimed)
 
         # 2. promote tentative tracks with enough hits
         for track in self.tracks:
@@ -111,7 +114,7 @@ class Tracker:
         # 4. every measurement no track claimed starts a tentative track. These
         # are created after association, so they sit out this scan's predict
         # and first face a measurement on the next one.
-        for measurement_index in unmatched_measurements:
+        for measurement_index in unclaimed:
             track = Track(measurements[measurement_index],
                           track_id=self.next_id, **self.track_kwargs)
             self.next_id += 1
@@ -119,6 +122,27 @@ class Tracker:
             events.append(("created", track.id))
 
         return events
+
+    def _assign(self, tracks, measurements, candidates):
+        """Associate some tracks with some of the measurements, correct the
+        matched tracks and coast the rest.
+
+        Args:
+            tracks:       the tracks taking part in this pass.
+            measurements: this scan's full (n, 2) array.
+            candidates:   array of indices into measurements still unclaimed.
+
+        Returns:
+            The indices from candidates that no track in this pass took.
+        """
+        matches, unmatched_tracks, unmatched = associate(
+            tracks, measurements[candidates], threshold=self.gate
+        )
+        for track_index, j in matches:
+            tracks[track_index].correct(measurements[candidates[j]])
+        for track_index in unmatched_tracks:
+            tracks[track_index].correct(None)
+        return candidates[unmatched]
 
     @property
     def confirmed_tracks(self):

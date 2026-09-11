@@ -96,6 +96,29 @@ def test_ids_are_never_reused():
     assert [t.id for t in tracker.tracks] == [2]
 
 
+def test_a_confirmed_track_keeps_a_measurement_a_tentative_track_wants():
+    """The failure lifecycle_demo.py showed: a newer tentative track sits
+    closer to a measurement than the confirmed track that needs it.
+
+    Track 1 is confirmed at the origin on scan 1, and that scan's second point,
+    at (6, 0), starts tentative track 2. On scan 2 a single measurement lands at
+    (5, 0): far nearer track 2's prediction, but inside track 1's gate. In one
+    joint assignment track 2 takes it. With confirmed tracks choosing first,
+    track 1 does, and track 2 -- having missed -- is deleted.
+    """
+    tracker = Tracker(confirm_after=2)
+    tracker.step(HERE)
+    tracker.step(np.array([[0.0, 0.0], [6.0, 0.0]]))
+    assert [(t.id, t.status) for t in tracker.tracks] == [
+        (1, "confirmed"), (2, "tentative")]
+
+    events = tracker.step(np.array([[5.0, 0.0]]))
+
+    assert events == [("deleted", 2)], f"got {events}"
+    assert [t.id for t in tracker.tracks] == [1]
+    assert tracker.tracks[0].misses == 0, "track 1 should have been updated"
+
+
 def test_an_empty_scan_on_an_empty_tracker():
     tracker = Tracker()
     assert tracker.step(NOTHING) == []
@@ -111,5 +134,6 @@ if __name__ == "__main__":
     test_confirmed_track_survives_until_delete_confirmed_after_misses()
     test_isolated_clutter_never_confirms()
     test_ids_are_never_reused()
+    test_a_confirmed_track_keeps_a_measurement_a_tentative_track_wants()
     test_an_empty_scan_on_an_empty_tracker()
     print("all tests passed")
